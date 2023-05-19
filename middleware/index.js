@@ -8,7 +8,7 @@ async function logger(req, res, next) {
   async function isLoggedIn(req, res, next) {
     let authorization = req.headers.authorization;
  
-    console.log(authorization);
+    //console.log(authorization);
     if (!authorization) {
       return res.status(403).send("A token is required for authentication");
     }
@@ -20,7 +20,7 @@ async function logger(req, res, next) {
     // Check token
     const [tokens] = await pool.query("SELECT * FROM access_tokens WHERE token = ?", [part2]);
     const token = tokens[0];
-    console.log('token',token);
+    //console.log('token',token);
     if (!token) {
       return res.status(401).send("You are not logged in");
     }
@@ -29,7 +29,7 @@ async function logger(req, res, next) {
     const [users] = await pool.query(
       "SELECT * FROM users WHERE user_id = ?", [token.user_id]
     );
-    console.log("user", users[0])
+    console.log("userจากmiddleware", users[0])
     req.user = users[0];
     
     next();
