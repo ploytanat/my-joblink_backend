@@ -3,8 +3,19 @@ const { pool } = require("../config");
 const router = express.Router();
 const Joi = require('joi');
 const bcrypt = require('bcrypt');
-
-
+const { isLoggedIn } = require("../middleware");
+const { v4: uuidv4 } = require('uuid');
+const multer = require('multer');
+router.get('/getData', isLoggedIn, async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM recruiters WHERE user_id=?', [req.user.user_id]);
+    console.log("applicant GetData", req.user.user_id)
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 const passwordValidator = (value, helpers) => {
     if (value.length < 8) {
@@ -65,4 +76,61 @@ router.post('/signup', async (req, res) => {
 });
 
 
+
+//สำหรับตรวจสอบไฟล์ ที่รับมา
+const profileEditSchema = Joi.object({
+  company_name: Joi.string().required(),
+  email: Joi.string().email().required(),
+  description: Joi.string().required(),
+  company_video: Joi.string().required(),
+});
+
+// ตั้งค่า multer upload
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, 'static/uploads/'); // กำหนดโฟลเดอร์ที่จะเก็บไฟล์ให้เป็น static/resume/
+    },
+    filename: function (req, file, cb) {
+      const uniqueFileName = `${uuidv4().slice(0, 4)}-${file.originalname}`;
+      cb(null, uniqueFileName); // กำหนดชื่อไฟล์เก็บในโฟลเดอร์เป็นชื่อที่ไม่ซ้ำกัน
+    }
+  }),
+  limits: {
+    fileSize: 15 * 1024 * 1024  // กำหนดขนาดสูงสุดของไฟล์เป็น 15MB
+  }
+});
+
+router.post("/editProfile", isLoggedIn, upload.single('profile_image'), async (req, res) => {
+  
+  try {
+    // ตรวจสอบความถูกต้องของข้อมูลที่รับเข้ามา
+    const { error } = profileEditSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+
+    // ดึงข้อมูลบริษัทที่ต้องการแก้ไขจากฐานข้อมูล
+    const {
+      company_name,
+      email,
+      description,
+      company_video,
+    } = req.body;
+    const companyId = req.user.user_id;
+    const filePath = req.file.path;
+    console.log("ResumePath", filePath)
+      // อัปเดตข้อมูลบริษัทในตาราง recruiters (หากมีการอ้างอิงผ่านฟิลด์ companyId)
+      const updateRecruitersQuery = `UPDATE recruiters SET name = ?, email = ?, description = ?, profile_image = ? company_video = ? WHERE user_id = ?`;
+
+      const updateRecruitersValues = [req.body.company_name, req.body.email, req.body.description, filePath,company_video, companyId];
+
+      await pool.query('UPDATE recruiters SET company_name = ?, email = ?, description = ?, profile_image = ? WHERE user_id = ?',[company_name, email, description, filePath, companyId]);
+      console.log("Recruiter edit Successfuly")
+      return res.json({ message: 'File uploaded successfully', profile_image:filePath });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 module.exports = router;
