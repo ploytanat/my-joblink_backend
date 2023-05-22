@@ -10,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 router.get('/getData', isLoggedIn, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM applicants WHERE user_id=?', [req.user.user_id]);
-    console.log("applicant GetData", req.user.user_id)
+    //console.log("applicant GetData", req.user.user_id)
     res.status(200).json(rows);
   } catch (error) {
     console.error(error);

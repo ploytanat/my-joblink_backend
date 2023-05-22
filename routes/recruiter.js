@@ -17,6 +17,19 @@ router.get('/getData', isLoggedIn, async (req, res) => {
   }
 });
 
+
+// GET all recruiters
+router.get("/getRecruiter", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM recruiters");
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
 const passwordValidator = (value, helpers) => {
     if (value.length < 8) {
       throw new Joi.ValidationError("Password must contain at least 8 characters");
@@ -119,18 +132,207 @@ router.post("/editProfile", isLoggedIn, upload.single('profile_image'), async (r
     } = req.body;
     const companyId = req.user.user_id;
     const filePath = req.file.path;
-    console.log("ResumePath", filePath)
-      // อัปเดตข้อมูลบริษัทในตาราง recruiters (หากมีการอ้างอิงผ่านฟิลด์ companyId)
-      const updateRecruitersQuery = `UPDATE recruiters SET name = ?, email = ?, description = ?, profile_image = ? company_video = ? WHERE user_id = ?`;
+    const status = 'open'
+    // ตรวจสอบว่าอีเมลใหม่ซ้ำกับที่มีอยู่ในตาราง recruiters หรือไม่
+    const [existingRecruiter] = await pool.query('SELECT * FROM recruiters WHERE email = ?', [email]);
+    if (existingRecruiter.length > 0 && existingRecruiter[0].user_id !== companyId) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
 
-      const updateRecruitersValues = [req.body.company_name, req.body.email, req.body.description, filePath,company_video, companyId];
-
-      await pool.query('UPDATE recruiters SET company_name = ?, email = ?, description = ?, profile_image = ? WHERE user_id = ?',[company_name, email, description, filePath, companyId]);
+      await pool.query('UPDATE recruiters SET company_name = ?, email = ?, description = ?, profile_image = ?, company_video = ?, status = ? WHERE user_id = ?',[company_name, email, description, filePath, company_video, status, companyId]);
+      await pool.query('UPDATE users SET status = ? WHERE user_id = ?', [status, companyId])
       console.log("Recruiter edit Successfuly")
-      return res.json({ message: 'File uploaded successfully', profile_image:filePath });
+
+       res.json({ message: 'File uploaded successfully', profile_image:filePath , });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Server error" });
   }
 });
+
+
+const addJobSchema = Joi.object({
+  title: Joi.string().required(),
+  location: Joi.string().required(),
+  salary: Joi.number().required().min(0),
+  status: Joi.string().valid("open", "close").required(),
+  description: Joi.string().required(),
+  qualifications: Joi.string().required(),
+  internship_duration: Joi.number().min(0),
+});
+
+router.post("/addJob", isLoggedIn, async (req, res) => {
+  try {
+    // ตรวจสอบความถูกต้องของข้อมูลที่รับเข้ามา
+    const { error, value } = addJobSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ message: error.details.map((detail) => detail.message) });
+    }
+
+    // สร้างข้อมูลงานใหม่
+    const {
+      title,
+      location,
+      salary,
+      description,
+      qualifications,
+      internship_duration,
+      status,
+    } = value;
+
+    // เพิ่มข้อมูลวันที่
+    const datePosted = new Date(); // เวลาปัจจุบัน
+
+    // เพิ่มข้อมูลงานใหม่ลงในตาราง jobs
+    await pool.query(
+      'INSERT INTO jobs (user_id, title, location, salary, description, qualifications, date_posted, internship_duration, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.user_id, title, location, salary, description, qualifications, datePosted, internship_duration, status]
+    );
+
+    console.log("addJob ", );
+    res.status(200).json({ message: "Job added successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+//แสดงงานทั้งหมด ของผู้ใช้
+router.get("/getJob", isLoggedIn, async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const [rows] = await pool.query("SELECT * FROM jobs WHERE user_id = ?", [userId]);
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+//ลบงานตาม job_id ที่ส่งมา
+router.delete("/deleteJob/:job_id", isLoggedIn, async (req, res) => {
+  try {
+    const { job_id } = req.params;
+
+    await pool.query('DELETE FROM jobs WHERE job_id = ?', [job_id]);
+    res.status(200).json({ message: "Job deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+//ดึงรายละเอียดของงานตามjob_id ที่ส่งมา
+router.get("/getJobDetails/:job_id", isLoggedIn, async (req, res) => {
+  try {
+    const { job_id } = req.params;
+
+    const [jobDetails] = await pool.query("SELECT * FROM jobs WHERE job_id = ?", [job_id]);
+
+    if (jobDetails.length === 0) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+  //ส่งรายละเอียดกลับไป
+    res.status(200).json(jobDetails[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+const updateJobSchema = Joi.object({
+  title: Joi.string().required(),
+  location: Joi.string().required(),
+  salary: Joi.number().min(0).required(),
+  status: Joi.string().valid('open', 'close').required(),
+  description: Joi.string().required(),
+  qualifications: Joi.string().required(),
+  internship_duration: Joi.number().min(0).required(),
+});
+router.put('/updateJob/:jobId', isLoggedIn, async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { error, value } = updateJobSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      return res.status(400).json({ message: error.details.map((detail) => detail.message) });
+    }
+    const {
+      title,
+      location,
+      salary,
+      status,
+      description,
+      qualifications,
+      internship_duration,
+    } = value;
+  
+    await pool.query(
+      'UPDATE jobs SET title = ?, location = ?, salary = ?, status = ?, description = ?, qualifications = ?, internship_duration = ? WHERE job_id = ?',
+      [title, location, salary, status, description, qualifications, internship_duration, jobId]
+    );
+  
+    res.status(200).json({ message: 'Job updated successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+// Get recruiter details
+router.get('/getRecruiterDetails/:companyId', async (req, res) => {
+  const companyId = req.params.companyId;
+
+  try {
+    const [results] = await pool.query('SELECT * FROM recruiters WHERE user_id = ?', [companyId]);
+
+    if (results.length > 0) {
+      const recruiter = results[0];
+      res.json(recruiter);
+    } else {
+      res.status(404).json({ message: 'Recruiter not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get company jobs
+router.get('/getCompanyJobs/:companyId', async (req, res) => {
+  const companyId = req.params.companyId;
+
+  try {
+    const [results] = await pool.query('SELECT * FROM jobs WHERE user_id = ?', [companyId]);
+
+    if (results.length > 0) {
+      res.json(results);
+    } else {
+      res.status(404).json({ message: 'No jobs found for this company' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// job details
+router.get('/getJobDetail/:jobId', async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+
+    const [results] = await pool.query('SELECT * FROM jobs WHERE job_id = ?', [jobId]);
+
+    // Assuming the results contain a single job object
+    const job = results[0];
+
+    res.json(job);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 module.exports = router;

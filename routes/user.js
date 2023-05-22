@@ -28,12 +28,10 @@ router.post("/signin", async (req, res, next) => {
     if (!user) {
       throw new Error("Incorrect username or password");
     }
-
     // Check if password is correct
     if (!(await bcrypt.compare(password, user.password))) {
       throw new Error("Incorrect username or password");
     }
-
     // Check if token already existed
     const [tokens] = await conn.query("SELECT * FROM access_tokens WHERE user_id=?", [user.user_id]);
     let token = tokens[0]?.token;
@@ -41,21 +39,13 @@ router.post("/signin", async (req, res, next) => {
       // Generate and save token into database
       token = generateToken();
       await conn.query("INSERT INTO access_tokens(user_id, token) VALUES (?, ?)", [user.user_id, token]);
-    }
-
-    const [applicants] = await conn.query("SELECT * FROM applicants WHERE user_id=?", [user.user_id]);
-    const [recruiters] = await conn.query("SELECT * FROM recruiters WHERE user_id=?", [user.user_id]);
-    let applicant = applicants[0]?.role;
-    let recruiter = recruiters[0]?.role;
-
-    if (!applicant || !recruiter) {
-      if (user.role === 'applicant') {
-        await pool.query('INSERT INTO applicants (user_id, email) VALUES (?, ?)', [user.user_id, email]); 
-      } else if (user.role === 'recruiter') {
-        await pool.query('INSERT INTO recruiters (user_id, email) VALUES (?, ?)', [user.user_id, email]);
+        if (user.role === 'applicant') {
+          await pool.query('INSERT INTO applicants (user_id, email) VALUES (?, ?)',[user.user_id, email]);
+        }else if (user.role === 'recruiter') {
+          await pool.query('INSERT INTO recruiters (user_id, email) VALUES (?, ?)', [user.user_id, email]);
+        
       }
     }
-    
     conn.commit();
     res.status(200).json({ token: token });
   } catch (error) {
@@ -71,18 +61,6 @@ router.get("/me", isLoggedIn, async (req, res, next) => {
     // req.user ถูก save ข้อมูล user จาก database ใน middleware function "isLoggedIn"
     
     res.json(req.user);
-  });
-  router.get('/static/resume/:file_path/:file_path',async (req, res) => {
-    try {
-      const userId = 39;
-      // ดึงข้อมูลเส้นทาง PDF ของผู้ใช้จากฐานข้อมูลของคุณ
-      const [users] = await pool.query("SELECT resume FROM applicants WHERE user_id=39");
-      const pdfPath = users[0]?.resume || ''; // หากไม่พบเส้นทาง PDF ให้ใช้ค่าเริ่มต้นเป็นสตริงว่าง
-  
-      res.status(200).json({ pdfPath });
-    } catch (error) {
-      res.status(500).json({ error: error.toString() });
-    }
   });
 
 module.exports = router;
