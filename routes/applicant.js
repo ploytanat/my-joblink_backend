@@ -17,7 +17,6 @@ router.get('/getData', isLoggedIn, async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
-
 const passwordValidator = (value, helpers) => {
   if (value.length < 8) {
     throw new Joi.ValidationError("Password must contain at least 8 characters");
@@ -27,7 +26,6 @@ const passwordValidator = (value, helpers) => {
   }
   return value;
 };
-
 const signupSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required().custom(passwordValidator),
@@ -47,7 +45,6 @@ router.post('/signup', async (req, res) => {
     // เข้ารหัสรหัสผ่านก่อนเก็บในฐานข้อมูล
     const hashedPassword = await bcrypt.hash(password, 10);
     const [existingUser] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-
     if (existingUser.length > 0) {
       return res.status(400).json({ message: 'Email already exists' });
     }
@@ -139,7 +136,6 @@ const upload = multer({
   }
 });
 
-
 router.post('/uploadResume',isLoggedIn, upload.single('resume'), async (req, res) => {
   try {
     const { error, value } = resumeSchema.validate({ resume: req.file.path });
@@ -152,7 +148,6 @@ router.post('/uploadResume',isLoggedIn, upload.single('resume'), async (req, res
     const userId = req.user.user_id;
     // บันทึกชื่อไฟล์เข้าฐานข้อมูล และ ใช้ฟังก์ชัน UUID() เพื่อสร้างชื่อไฟล์ที่ไม่ซ้ำกัน
     await pool.query('UPDATE applicants SET resume =(?) WHERE user_id = ?', [filePath, userId]);
-
     console.log("File uploaded successfully")
     return res.json({ message: 'File uploaded successfully', filePath:filePath });
   } catch (err) {
@@ -160,6 +155,4 @@ router.post('/uploadResume',isLoggedIn, upload.single('resume'), async (req, res
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-
 module.exports = router;

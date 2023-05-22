@@ -5,12 +5,10 @@ const Joi = require('joi');
 const bcrypt = require('bcrypt');
 const { generateToken } = require("../utils/token");
 const { isLoggedIn } = require("../middleware");
-
 //สมัครงาน
 router.post('/sendApplicationJob',isLoggedIn, async (req, res) => {
     try {
       const { job_id, user_id } = req.body;
-
       const [result] = await pool.query(
         'INSERT INTO job_applications (job_id, applicant_id, status) VALUES (?, ?, ?)',
         [job_id, user_id, 'pending']
@@ -22,11 +20,9 @@ router.post('/sendApplicationJob',isLoggedIn, async (req, res) => {
       res.status(500).json({ error: 'Server error' });
     }
 });
-
 // Get job applications for a specific user
 router.get('/getJobApplications', isLoggedIn, async (req, res) => {
     const userId = req.user.user_id;
-  
     try {
         const [results] = await pool.query(`
         SELECT ja.job_id, ja.applicant_id, ja.status, j.title, ja.application_id
@@ -34,7 +30,6 @@ router.get('/getJobApplications', isLoggedIn, async (req, res) => {
         INNER JOIN jobs j ON ja.job_id = j.job_id
         WHERE ja.applicant_id = ?
       `, [userId]);
-  
       const jobApplications = results.map((row) => {
         return {
           application_id: row.application_id,
@@ -46,14 +41,12 @@ router.get('/getJobApplications', isLoggedIn, async (req, res) => {
           },
         };
       });
-  
       res.json(jobApplications);
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: 'Server error' });
     }
   });
-
 router.put('/cancelJob/:applicationId', isLoggedIn, async (req, res) => {
     const { status } = req.body;
     const applicationId = req.params.applicationId;
@@ -65,11 +58,9 @@ router.put('/cancelJob/:applicationId', isLoggedIn, async (req, res) => {
       res.status(500).json({ error: 'Server error' });
     }
   });
-
 // Get job applications for a specific recruiter
 router.get('/getApplications', isLoggedIn, async (req, res) => {
     const recruiterId = req.user.user_id;
-  
     try {
       const [results] = await pool.query(`
         SELECT ja.*, j.title as job_title
@@ -77,7 +68,6 @@ router.get('/getApplications', isLoggedIn, async (req, res) => {
         INNER JOIN jobs j ON ja.job_id = j.job_id
         WHERE j.user_id = ?
       `, [recruiterId]);
-  
       const applications = results.map((row) => {
         return {
           id: row.application_id,
@@ -97,7 +87,6 @@ router.get('/getApplications', isLoggedIn, async (req, res) => {
   router.put('/updateStatus/:applicationId', isLoggedIn, async (req, res) => {
     const applicationId = req.params.applicationId;
     const { status } = req.body;
-    
     try {
       await pool.query('UPDATE job_applications SET status = ? WHERE application_id = ?', [status, applicationId]);
       res.json({ message: 'Update application status successful' });
@@ -107,24 +96,16 @@ router.get('/getApplications', isLoggedIn, async (req, res) => {
     }
   });
   
-  
-  
   router.get('/getApplicationDetails/:applicationId', async (req, res) => {
     try {
       const applicationId = req.params.applicationId;
-  
-      // Find user_id from job_applications table
       const [applicationResult] = await pool.query('SELECT applicant_id FROM job_applications WHERE application_id = ?', [applicationId]);
       const userId = applicationResult[0].applicant_id;
-  
-      // Get applicant details from applicants table
       const [applicantResult] = await pool.query('SELECT * FROM applicants WHERE user_id = ?', [userId]);
-  
       res.json(applicantResult);
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: 'Server error' });
     }
   });
-  
 module.exports = router;

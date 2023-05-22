@@ -17,7 +17,6 @@ router.get('/getData', isLoggedIn, async (req, res) => {
   }
 });
 
-
 // GET all recruiters
 router.get("/getRecruiter", async (req, res) => {
   try {
@@ -28,7 +27,6 @@ router.get("/getRecruiter", async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
 
 const passwordValidator = (value, helpers) => {
     if (value.length < 8) {
@@ -46,7 +44,6 @@ const passwordValidator = (value, helpers) => {
     confirm_password: Joi.string().required().valid(Joi.ref("password")),
   });
   
-
 router.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users');
@@ -58,7 +55,6 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/signup', async (req, res) => {
-
   try {
     await signupSchema.validateAsync(req.body, { abortEarly: false });
   } catch (err) {
@@ -88,8 +84,6 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-
-
 //สำหรับตรวจสอบไฟล์ ที่รับมา
 const profileEditSchema = Joi.object({
   company_name: Joi.string().required(),
@@ -115,7 +109,6 @@ const upload = multer({
 });
 
 router.post("/editProfile", isLoggedIn, upload.single('profile_image'), async (req, res) => {
-  
   try {
     // ตรวจสอบความถูกต้องของข้อมูลที่รับเข้ามา
     const { error } = profileEditSchema.validate(req.body);
@@ -138,7 +131,6 @@ router.post("/editProfile", isLoggedIn, upload.single('profile_image'), async (r
     if (existingRecruiter.length > 0 && existingRecruiter[0].user_id !== companyId) {
       return res.status(400).json({ message: 'Email already exists' });
     }
-
       await pool.query('UPDATE recruiters SET company_name = ?, email = ?, description = ?, profile_image = ?, company_video = ?, status = ? WHERE user_id = ?',[company_name, email, description, filePath, company_video, status, companyId]);
       await pool.query('UPDATE users SET status = ? WHERE user_id = ?', [status, companyId])
       console.log("Recruiter edit Successfuly")
@@ -149,7 +141,6 @@ router.post("/editProfile", isLoggedIn, upload.single('profile_image'), async (r
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 const addJobSchema = Joi.object({
   title: Joi.string().required(),
@@ -168,7 +159,6 @@ router.post("/addJob", isLoggedIn, async (req, res) => {
     if (error) {
       return res.status(400).json({ message: error.details.map((detail) => detail.message) });
     }
-
     // สร้างข้อมูลงานใหม่
     const {
       title,
@@ -182,7 +172,6 @@ router.post("/addJob", isLoggedIn, async (req, res) => {
 
     // เพิ่มข้อมูลวันที่
     const datePosted = new Date(); // เวลาปัจจุบัน
-
     // เพิ่มข้อมูลงานใหม่ลงในตาราง jobs
     await pool.query(
       'INSERT INTO jobs (user_id, title, location, salary, description, qualifications, date_posted, internship_duration, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -226,9 +215,7 @@ router.delete("/deleteJob/:job_id", isLoggedIn, async (req, res) => {
 router.get("/getJobDetails/:job_id", isLoggedIn, async (req, res) => {
   try {
     const { job_id } = req.params;
-
     const [jobDetails] = await pool.query("SELECT * FROM jobs WHERE job_id = ?", [job_id]);
-
     if (jobDetails.length === 0) {
       return res.status(404).json({ message: "Job not found" });
     }
@@ -240,7 +227,6 @@ router.get("/getJobDetails/:job_id", isLoggedIn, async (req, res) => {
   }
 });
 
-
 const updateJobSchema = Joi.object({
   title: Joi.string().required(),
   location: Joi.string().required(),
@@ -250,6 +236,7 @@ const updateJobSchema = Joi.object({
   qualifications: Joi.string().required(),
   internship_duration: Joi.number().min(0).required(),
 });
+
 router.put('/updateJob/:jobId', isLoggedIn, async (req, res) => {
   try {
     const { jobId } = req.params;
@@ -283,10 +270,8 @@ router.put('/updateJob/:jobId', isLoggedIn, async (req, res) => {
 // Get recruiter details
 router.get('/getRecruiterDetails/:companyId', async (req, res) => {
   const companyId = req.params.companyId;
-
   try {
     const [results] = await pool.query('SELECT * FROM recruiters WHERE user_id = ?', [companyId]);
-
     if (results.length > 0) {
       const recruiter = results[0];
       res.json(recruiter);
@@ -302,10 +287,8 @@ router.get('/getRecruiterDetails/:companyId', async (req, res) => {
 // Get company jobs
 router.get('/getCompanyJobs/:companyId', async (req, res) => {
   const companyId = req.params.companyId;
-
   try {
     const [results] = await pool.query('SELECT * FROM jobs WHERE user_id = ?', [companyId]);
-
     if (results.length > 0) {
       res.json(results);
     } else {
@@ -321,18 +304,14 @@ router.get('/getCompanyJobs/:companyId', async (req, res) => {
 router.get('/getJobDetail/:jobId', async (req, res) => {
   try {
     const jobId = req.params.jobId;
-
     const [results] = await pool.query('SELECT * FROM jobs WHERE job_id = ?', [jobId]);
-
     // Assuming the results contain a single job object
     const job = results[0];
-
     res.json(job);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
   }
 });
-
 
 module.exports = router;
